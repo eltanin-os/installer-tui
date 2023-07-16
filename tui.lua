@@ -571,12 +571,40 @@ local function install()
 		exec_screen({"setup-user", v.name, uid, v.password, v.groups}, selectfn)
 		uid = uid + 1
 	end
+	local status = 0
 	local setup_laststeps = function(i, v)
 		if i == 0 then
 			exec_screen({"setup-password", "root", rootpass}, selectfn)
 			return
+		elseif i == 1 then
+			exec_screen("setup-bootloader", selectfn)
+			return
 		end
-		exec_screen("setup-bootloader", selectfn)
+		local entries = {
+			{
+				label = (status == 0) and texts.end_success or texts.end_fail,
+				itemlabel = true,
+			},
+			{
+				label = "separator",
+				separator = true,
+			},
+			{
+				label = texts.end_reboot
+			},
+			{
+				label = texts.back
+			},
+		}
+		local fn =
+		function(idx)
+			if idx == #entries - 1 then
+				popen("setup-reboot")
+				return
+			end
+			selectfn({code = 0})
+		end
+		wnd:listview(entries, fn)
 	end
 	local tab = {
 		{
@@ -593,7 +621,7 @@ local function install()
 		},
 		{
 			fn = setup_laststeps,
-			tab = {0, 1},
+			tab = {0, 1, 2},
 		},
 	}
 	local tabpos = 0
@@ -605,6 +633,15 @@ local function install()
 	local idx = nil
 	selectfn = function(arg)
 		if arg.code == nil then
+			return
+		end
+		if arg.code ~= 0 and arg.event == nil then
+			status = arg.code
+			return
+		end
+		if status ~= 0 then
+			wnd:revert()
+			tab[#tab].fn(#tab[#tab].tab, nil)
 			return
 		end
 		local v = nil
