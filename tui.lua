@@ -602,7 +602,7 @@ local function install()
 				popen("setup-reboot")
 				return
 			end
-			selectfn({code = 0})
+			lists_reset()
 		end
 		wnd:listview(entries, fn)
 	end
@@ -769,24 +769,6 @@ end
 lists_update()
 wnd = tui.open("Eltanin Installer", "", {handlers = {resized = redraw}})
 lists_reset()
-
-local theme = {
-	fg = {55, 55, 55},
-	bg = {233, 236, 236},
-	fg_inactive = {144, 144, 144},
-	fg_select = {255, 255, 255},
-	bg_select = {55, 55, 55},
-}
-
-wnd:set_color(5, unpack(theme.fg)) -- text
-wnd:set_color(8, unpack(theme.fg_select)) -- highlight
-wnd:set_color(9, unpack(theme.fg)) -- label
-wnd:set_color(14, unpack(theme.fg_inactive)) -- inactive
-
-wnd:set_bgcolor(5, unpack(theme.bg)) -- text
-wnd:set_bgcolor(8, unpack(theme.bg_select)) -- highlight
-wnd:set_bgcolor(9, unpack(theme.bg)) -- label
-wnd:set_bgcolor(14, unpack(theme.bg)) -- inactive
 
 while (wnd:process() and wnd:alive()) do
 	wnd:refresh()

@@ -10,7 +10,7 @@ local function spawn_terminal()
 end
 
 local function screen_init()
-	topbar = color_surface(1, 1, 0, 0, 0)
+	topbar = color_surface(1, 1, 34, 34, 34)
 	move_image(topbar, 0, 0)
 	logo = load_image("images/logo.svg", 1, 64, 64)
 	if (not valid_vid(vid)) then
