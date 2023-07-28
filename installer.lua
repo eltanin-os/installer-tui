@@ -17,7 +17,7 @@ local function screen_init()
 		logo = load_image("images/logo.png", 1, 64, 64)
 	end
 	move_image(logo, 0, 0)
-	title = render_text([[\ffonts/alice.ttf,18\bEltanin OS - Glacies]])
+	title = render_text([[\ffonts/default.ttf,18\bEltanin OS - Glacies]])
 	order_image(title, 2)
 	show_image({topbar, logo, title})
 end
@@ -31,7 +31,7 @@ local function screen_resize()
 	end
 	resize_image(cur_vid, VRESW, VRESH - 64)
 	target_displayhint(cur_vid, VRESW, VRESH, TD_HINT_IGNORE, {ppcm = VPPCM})
-	target_fonthint(cur_vid, "default.ttf", 12 * FONT_PT_SZ, 2)
+	target_fonthint(cur_vid, "mono.ttf", 12 * FONT_PT_SZ, 2)
 end
 
 function installer()
