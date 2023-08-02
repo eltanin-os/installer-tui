@@ -14,9 +14,52 @@ local steps = {
 	rootpass = false, -- root pass set up?
 }
 -- data
+local keymap = "us"
+local timezone = "UTC"
 local filesystem = {}
 local rootpass = nil
 local users = {}
+
+-- exec routines
+local function flush(stdout, fn)
+	local ret = false
+	local _, alive = stdout:read(
+		function(line, eof)
+			fn(line)
+			ret = eof
+		end
+	)
+	return ret or not alive
+end
+
+local function popen(arg, mode)
+	local tab = {"/usr/bin/env", "env"}
+	if type(arg) == "string" then
+		arg = {arg}
+	end
+	for _, v in ipairs(arg) do
+		table.insert(tab, v)
+	end
+	return wnd:popen(tab, "r", wnd:getenv())
+end
+
+local function exec_out(arg)
+	local _, stdout, _, _ = popen(arg, "r")
+	return stdout
+end
+
+local function exec_populate(list, pos, arg)
+	local stdout = exec_out(arg)
+	stdout:lf_strip(true)
+	local cpos = pos
+	local fn = function(arg)
+		table.insert(list, cpos, {label = arg})
+		cpos = cpos + 1
+	end
+	while not flush(stdout, fn) do
+	end
+	return cpos
+end
 
 -- lists routines
 local lists = nil
@@ -37,6 +80,9 @@ local function lists_update()
 			},
 			{
 				label = texts.keyboard,
+			},
+			{
+				label = texts.timezone,
 			},
 			{
 				label = texts.network,
@@ -72,6 +118,20 @@ local function lists_update()
 		{
 			{
 				label = texts.keyboard_title,
+				itemlabel = true,
+			},
+			{
+				label = "separator",
+				separator = true,
+			},
+			{
+				label = texts.back,
+			},
+		},
+		-- Timezone
+		{
+			{
+				label = texts.timezone_title,
 				itemlabel = true,
 			},
 			{
@@ -206,6 +266,10 @@ local function lists_update()
 		}
 		table.insert(list[2], i + 2, entry)
 	end
+	-- keyboard populate
+	exec_populate(list[3], 3, "setup-list-keymaps")
+	-- timezone populate
+	exec_populate(list[4], 3, "setup-list-timezones")
 	-- create summary
 	local size = 0
 	for k, _ in pairs(steps) do
@@ -213,7 +277,7 @@ local function lists_update()
 			label = "[" .. (steps[k] and "X" or "-") .. "] " .. texts["steps_" .. k],
 			itemlabel = true,
 		}
-		table.insert(list[7], 5, entry)
+		table.insert(list[8], 5, entry)
 		size = size + 1
 	end
 	for k, _ in pairs(opts) do
@@ -221,7 +285,7 @@ local function lists_update()
 			label = "[" .. (opts[k] and "X" or "-") .. "] " .. texts["opts_" .. k],
 			itemlabel = true,
 		}
-		table.insert(list[7], 8 + size, entry)
+		table.insert(list[8], 8 + size, entry)
 	end
 	-- return
 	lists = list
@@ -236,8 +300,8 @@ local function lists_reset()
 	lists_current()
 end
 
--- general routines
-local function winrun(arg)
+-- screen routines
+local function screen_wexec(arg)
 	wnd:new_window("handover",
 		function(w, new)
 			if not new then
@@ -255,35 +319,7 @@ local function winrun(arg)
 	)
 end
 
--- exec routines
-local function flush(stdout, fn)
-	local ret = false
-	local _, alive = stdout:read(
-		function(line, eof)
-			fn(line)
-			ret = eof
-		end
-	)
-	return ret or not alive
-end
-
-local function popen(arg, mode)
-	local tab = {"/usr/bin/env", "env"}
-	if type(arg) == "string" then
-		arg = {arg}
-	end
-	for _, v in ipairs(arg) do
-		table.insert(tab, v)
-	end
-	return wnd:popen(tab, "r", wnd:getenv())
-end
-
-local function exec_out(arg)
-	local _, stdout, _, _ = popen(arg, "r")
-	return stdout
-end
-
-local function exec_screen(arg, efn)
+local function screen_exec(arg, efn)
 	local ret = nil
 	local _, stdout, _, pid = popen(arg, "r")
 	local buf = texts.buffer_out .. "\n" .. texts.buffer_esc .. "\n"
@@ -323,10 +359,7 @@ local function exec_screen(arg, efn)
 	efn(data)
 end
 
-local function screen_choose(prompt, lfn, dfn)
-	-- popen
-	local stdout = lfn()
-	stdout:lf_strip(true)
+local function screen_choose(prompt, arg, fn)
 	-- populate
 	local entries = {
 		{
@@ -338,12 +371,8 @@ local function screen_choose(prompt, lfn, dfn)
 			separator = true,
 		}
 	}
-	local fn = function(arg)
-		table.insert(entries, {label = arg})
-	end
-	while not flush(stdout, fn) do
-	end
-	table.insert(entries, {label = texts.back})
+	local pos = exec_populate(entries, 3, arg)
+	table.insert(entries, pos, {label = texts.back})
 	-- screen
 	selectfn = function(idx)
 		if idx == #entries or not idx then
@@ -351,7 +380,7 @@ local function screen_choose(prompt, lfn, dfn)
 			lists_current()
 			return
 		end
-		dfn(entries[idx].label)
+		fn(entries[idx].label)
 	end
 	wnd:listview(entries, selectfn)
 end
@@ -534,17 +563,13 @@ local function addmount()
 		end
 		screen_choose(
 			texts.partitions_choosetype,
-			function()
-				return exec_out("setup-list-fstypes")
-			end,
+			"setup-list-fstypes",
 			typefn
 		)
 	end
 	screen_choose(
 		texts.partitions_choose,
-		function()
-			return exec_out("setup-list-disks")
-		end,
+		"setup-list-disks",
 		function(arg)
 			disk = arg
 			singleln(texts.addmount, pathfn,
@@ -561,23 +586,29 @@ end
 
 local function install()
 	local setup_mount = function(k, v)
-		exec_screen({"setup-mount", v.disk, k, v.fstype, v.mkfs}, selectfn)
+		screen_exec({"setup-mount", v.disk, k, v.fstype, v.mkfs}, selectfn)
 	end
 	local setup_glacies = function()
-		exec_screen({"setup-system", tostring(opts.network)}, selectfn)
+		screen_exec({"setup-system", tostring(opts.network)}, selectfn)
 	end
 	local uid = 1000
 	local setup_user = function(i, v)
-		exec_screen({"setup-user", v.name, uid, v.password, v.groups}, selectfn)
+		screen_exec({"setup-user", v.name, uid, v.password, v.groups}, selectfn)
 		uid = uid + 1
 	end
 	local status = 0
 	local setup_laststeps = function(i, v)
 		if i == 0 then
-			exec_screen({"setup-password", "root", rootpass}, selectfn)
+			screen_exec({"setup-password", "root", rootpass}, selectfn)
 			return
 		elseif i == 1 then
-			exec_screen("setup-bootloader", selectfn)
+			screen_exec("setup-bootloader", selectfn)
+			return
+		elseif i == 2 then
+			screen_exec({"setup-keymap", keymap}, selectfn)
+			return
+		elseif i == 3 then
+			screen_exec({"setup-timezone", timezone}, selectfn)
 			return
 		end
 		local entries = {
@@ -621,7 +652,7 @@ local function install()
 		},
 		{
 			fn = setup_laststeps,
-			tab = {0, 1, 2},
+			tab = {0, 1, 2, 3, 4},
 		},
 	}
 	local tabpos = 0
@@ -681,15 +712,31 @@ local listview_func_table = {
 	end,
 	-- Keyboard
 	function(idx)
+		for i, v in ipairs(lists[cl], 3, #lists[cl] - 1) do
+			v.checked = false
+		end
+		lists[cl][idx].checked = true
+		keymap = lists[cl][idx].label
+		lists_update()
+		lists_reset()
+	end,
+	-- Timezone
+	function(idx)
+		screen_choose(
+			texts.timezone_choose,
+			{ "setup-list-timezones", lists[cl][idx].label },
+			function(arg)
+				timezone = lists[cl][idx].label .. arg
+				lists_reset()
+			end
+		)
 	end,
 	-- Network
 	function(idx)
 		if idx == 3 then
 			screen_choose(
 				texts.network_choose,
-				function()
-					return exec_out("setup-list-interfaces")
-				end,
+				"setup-list-interfaces",
 				function(arg)
 					local fn = function(ev)
 						if ev.event ~= nil then
@@ -700,7 +747,7 @@ local listview_func_table = {
 							lists_update()
 						end
 					end
-					exec_screen({"setup-network", arg}, fn)
+					screen_exec({"setup-network", arg}, fn)
 				end
 			)
 		elseif idx == 4 then
@@ -714,11 +761,9 @@ local listview_func_table = {
 		if idx == 3 then
 			screen_choose(
 				texts.partitions_choose,
-				function()
-					return exec_out("setup-list-devices")
-				end,
+				"setup-list-devices",
 				function(arg)
-					winrun("cfdisk " .. arg)
+					screen_wexec("cfdisk " .. arg)
 				end
 			)
 		elseif idx == 4 then
@@ -766,8 +811,8 @@ end
 local function redraw(wnd)
 end
 
-lists_update()
 wnd = tui.open("Eltanin Installer", "", {handlers = {resized = redraw}})
+lists_update()
 lists_reset()
 
 while (wnd:process() and wnd:alive()) do
