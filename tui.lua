@@ -292,6 +292,7 @@ local function lists_update()
 end
 
 local function lists_current()
+	wnd:revert()
 	wnd:listview(lists[cl], select_func)
 end
 
@@ -322,7 +323,9 @@ end
 local function screen_exec(arg, efn)
 	local ret = nil
 	local _, stdout, _, pid = popen(arg, "r")
-	local buf = texts.buffer_out .. "\n" .. texts.buffer_esc .. "\n"
+	local head = texts.buffer_out .. "\n" .. texts.buffer_esc .. "\n"
+	local body = ""
+	local buf =  head
 	local data = {event = nil, code = nil}
 	local showbuffer = function()
 		wnd:revert()
@@ -338,7 +341,8 @@ local function screen_exec(arg, efn)
 	end
 	showbuffer()
 	local fn = function(arg)
-		buf = buf .. arg
+		body = arg .. body
+		buf = head .. body
 		showbuffer()
 	end
 	flush(stdout, fn)
@@ -745,6 +749,7 @@ local listview_func_table = {
 						if ev.code == 0 then
 							steps.network = true
 							lists_update()
+							lists_current()
 						end
 					end
 					screen_exec({"setup-network", arg}, fn)
