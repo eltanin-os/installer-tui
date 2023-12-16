@@ -408,6 +408,7 @@ local function getpass(fn, err)
 			function(self, msg)
 				if password ~= msg then
 					getpass(fn, true)
+					return
 				end
 				lists_current()
 				fn(msg)
@@ -417,9 +418,12 @@ local function getpass(fn, err)
 		rl:set_prompt(texts.getpass_repeat)
 	end
 	local rl = wnd:readline(handler, opts)
+	local attrtbl = wnd:set_default()
 	rl:set_prompt(texts.getpass_passwd)
 	if err ~= nil then
-		wnd:write_to(0, 1, texts.getpass_err)
+		local attr = tui.attr({ fr = 255, fg = 0, fb = 0 })
+		wnd:write_to(0, 1, texts.getpass_err, attr)
+		wnd:set_default(attrtbl)
 	end
 end
 
@@ -468,6 +472,10 @@ local function adduser()
 	end
 	local namefn =
 	function(msg)
+		if msg == "root" then
+			lists_current()
+			return
+		end
 		name = msg
 		getpass(passfn)
 	end
