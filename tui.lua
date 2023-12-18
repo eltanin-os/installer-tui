@@ -610,16 +610,16 @@ local function install()
 	end
 	local status = 0
 	local setup_laststeps = function(i, v)
-		if i == 0 then
+		if i == 1 then
 			screen_exec({"setup-password", "root", rootpass}, selectfn)
 			return
-		elseif i == 1 then
+		elseif i == 2 then
 			screen_exec("setup-bootloader", selectfn)
 			return
-		elseif i == 2 then
+		elseif i == 3 then
 			screen_exec({"setup-keymap", keymap}, selectfn)
 			return
-		elseif i == 3 then
+		elseif i == 4 then
 			screen_exec({"setup-timezone", timezone}, selectfn)
 			return
 		end
